@@ -6074,11 +6074,26 @@ int MeshAgent_Start(MeshAgentHostContainer *agentHost, int paramLen, char **para
 	}
 
 	HGLOBAL hWinPtyDllData = LoadResource(NULL, hWinPtyDll);
+	if (hWinPtyDllData == NULL) {
+		// Unable to load resource winpty.dll
+		agentHost->exitCode = 1;
+		return 1;
+	}
+
 	DWORD dwWinPtyDllSize = SizeofResource(NULL, hWinPtyDll);
 	LPVOID lpWinPtyDll = LockResource(hWinPtyDllData);
+	if (lpWinPtyDll == NULL) {
+		// Unable to retrieve memory pointer to resource winpty.dll
+		agentHost->exitCode = 1;
+		return 1;
+	}
+
+	TCHAR currentDirectory[MAX_PATH];
+	GetCurrentDirectory(MAX_PATH, &currentDirectory);
+	sprintf_s(currentDirectory, MAX_PATH, TEXT("%s\\%s"), currentDirectory, TEXT("winpty.dll"));
 
 	HANDLE hWinPtyDllFile = CreateFile(
-		TEXT("winpty.dll"),
+		currentDirectory,
 		GENERIC_READ | GENERIC_WRITE,
 		0,
 		NULL,
@@ -6097,7 +6112,7 @@ int MeshAgent_Start(MeshAgentHostContainer *agentHost, int paramLen, char **para
 	BOOL isFileWritten = WriteFile(hWinPtyDllFile, lpWinPtyDll, dwWinPtyDllSize, &dwWritten, NULL);
 
 	if (!isFileWritten) {
-		// Unable to write file
+		// Unable to write file winpty.dll
 		agentHost->exitCode = 1;
 		return 1;
 	}
