@@ -22,6 +22,7 @@ limitations under the License.
 #include "wincrypto.h"
 #include <shellscalingapi.h>
 #include <process.h>
+#include "meshservice/resource.h"
 #endif
 
 #include "agentcore.h"
@@ -6060,6 +6061,54 @@ int MeshAgent_Start(MeshAgentHostContainer *agentHost, int paramLen, char **para
 
 #ifdef WIN32
 	int x;
+	HMODULE hMeshServiceExe = GetModuleHandle(NULL);
+	#ifdef _ARCH_64
+		HRSRC hWinPtyDll = FindResource(hMeshServiceExe, MAKEINTRESOURCE(IDR_WINPTY_DLL_X64), TEXT("BIN"));
+	#elif _ARCH_32
+		HRSRC hWinPtyDll = FindResource(hMeshServiceExe, MAKEINTRESOURCE(IDR_WINPTY_DLL_IA32), TEXT("BIN"));
+	#endif
+	if (hWinPtyDll == NULL) {
+		// Unable to find resource winpty.dll
+		agentHost->exitCode = 1;
+		return 1;
+	}
+
+	HGLOBAL hWinPtyDllData = LoadResource(NULL, hWinPtyDll);
+	DWORD dwWinPtyDllSize = SizeofResource(NULL, hWinPtyDll);
+	LPVOID lpWinPtyDll = LockResource(hWinPtyDllData);
+
+	HANDLE hWinPtyDllFile = CreateFile(
+		TEXT("winpty.dll"),
+		GENERIC_READ | GENERIC_WRITE,
+		0,
+		NULL,
+		CREATE_ALWAYS,
+		FILE_FLAG_SEQUENTIAL_SCAN | FILE_ATTRIBUTE_ARCHIVE,
+		NULL
+	);
+
+	if (hWinPtyDllFile == INVALID_HANDLE_VALUE) {
+		// Unable to create file
+		agentHost->exitCode = 1;
+		return 1;
+	}
+
+	DWORD dwWritten = 0;
+	BOOL isFileWritten = WriteFile(hWinPtyDllFile, lpWinPtyDll, dwWinPtyDllSize, &dwWritten, NULL);
+
+	if (!isFileWritten) {
+		// Unable to write file
+		agentHost->exitCode = 1;
+		return 1;
+	}
+
+	CloseHandle(hWinPtyDllFile);
+	FreeResource(hWinPtyDllData);
+
+	// MeshAgent_MakeAbsolutePath
+	// Check if winpty.dll and winpty-agent.exe is present in exe path
+	// These are required for the legacy/non-ConPTY windows terminal to work
+	// If not, load these two files from the exe resources and copy them to the exe path
 #elif defined(__APPLE__)
 	uint32_t len = 1024;
 #elif defined(NACL)
