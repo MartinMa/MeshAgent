@@ -6061,69 +6061,42 @@ int MeshAgent_Start(MeshAgentHostContainer *agentHost, int paramLen, char **para
 
 #ifdef WIN32
 	int x;
-	HMODULE hMeshServiceExe = GetModuleHandle(NULL);
-	#ifdef _ARCH_64
-		HRSRC hWinPtyDll = FindResource(hMeshServiceExe, MAKEINTRESOURCE(IDR_WINPTY_DLL_X64), TEXT("BIN"));
-	#elif _ARCH_32
-		HRSRC hWinPtyDll = FindResource(hMeshServiceExe, MAKEINTRESOURCE(IDR_WINPTY_DLL_IA32), TEXT("BIN"));
-	#endif
-	if (hWinPtyDll == NULL) {
-		// Unable to find resource winpty.dll
-		agentHost->exitCode = 1;
-		return 1;
-	}
 
-	HGLOBAL hWinPtyDllData = LoadResource(NULL, hWinPtyDll);
-	if (hWinPtyDllData == NULL) {
-		// Unable to load resource winpty.dll
-		agentHost->exitCode = 1;
-		return 1;
-	}
-
-	DWORD dwWinPtyDllSize = SizeofResource(NULL, hWinPtyDll);
-	LPVOID lpWinPtyDll = LockResource(hWinPtyDllData);
-	if (lpWinPtyDll == NULL) {
-		// Unable to retrieve memory pointer to resource winpty.dll
-		agentHost->exitCode = 1;
-		return 1;
-	}
-
+	// Check for winpty.dll and winpty-agent.exe in current directory.
+	// These files are required for the legacy/non-ConPTY Windows terminal to work.
 	TCHAR currentDirectory[MAX_PATH];
+	TCHAR winPtyDllPath[MAX_PATH];
+	TCHAR winPtyAgentExePath[MAX_PATH];
 	GetCurrentDirectory(MAX_PATH, &currentDirectory);
-	sprintf_s(currentDirectory, MAX_PATH, TEXT("%s\\%s"), currentDirectory, TEXT("winpty.dll"));
 
-	HANDLE hWinPtyDllFile = CreateFile(
-		currentDirectory,
-		GENERIC_READ | GENERIC_WRITE,
-		0,
-		NULL,
-		CREATE_ALWAYS,
-		FILE_FLAG_SEQUENTIAL_SCAN | FILE_ATTRIBUTE_ARCHIVE,
-		NULL
-	);
+	sprintf_s(winPtyDllPath, MAX_PATH, TEXT("%s\\%s"), currentDirectory, TEXT("winpty.dll"));
+	sprintf_s(winPtyAgentExePath, MAX_PATH, TEXT("%s\\%s"), currentDirectory, TEXT("winpty-agent.exe"));
 
-	if (hWinPtyDllFile == INVALID_HANDLE_VALUE) {
-		// Unable to create file
-		agentHost->exitCode = 1;
-		return 1;
+	HMODULE hMeshServiceExe = GetModuleHandle(NULL);
+	if (GetFileAttributes(winPtyDllPath) == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_FILE_NOT_FOUND) {
+#ifdef _ARCH_64
+		HRSRC hWinPtyDll = FindResource(hMeshServiceExe, MAKEINTRESOURCE(IDR_WINPTY_DLL_X64), TEXT("BIN"));
+#elif _ARCH_32
+		HRSRC hWinPtyDll = FindResource(hMeshServiceExe, MAKEINTRESOURCE(IDR_WINPTY_DLL_IA32), TEXT("BIN"));
+#endif
+		int copySuccess = CopyResourceToFilesystem(hWinPtyDll, winPtyDllPath);
+		if (copySuccess != 0) {
+			agentHost->exitCode = copySuccess;
+			return copySuccess;
+		}
 	}
-
-	DWORD dwWritten = 0;
-	BOOL isFileWritten = WriteFile(hWinPtyDllFile, lpWinPtyDll, dwWinPtyDllSize, &dwWritten, NULL);
-
-	if (!isFileWritten) {
-		// Unable to write file winpty.dll
-		agentHost->exitCode = 1;
-		return 1;
+	if (GetFileAttributes(winPtyAgentExePath) == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_FILE_NOT_FOUND) {
+#ifdef _ARCH_64
+		HRSRC hWinPtyAgentExe = FindResource(hMeshServiceExe, MAKEINTRESOURCE(IDR_WINPTY_AGENT_EXE_X64), TEXT("BIN"));
+#elif _ARCH_32
+		HRSRC hWinPtyAgentExe = FindResource(hMeshServiceExe, MAKEINTRESOURCE(IDR_WINPTY_AGENT_EXE_IA32), TEXT("BIN"));
+#endif
+		int copySuccess = CopyResourceToFilesystem(hWinPtyAgentExe, winPtyAgentExePath);
+		if (copySuccess != 0) {
+			agentHost->exitCode = copySuccess;
+			return copySuccess;
+		}
 	}
-
-	CloseHandle(hWinPtyDllFile);
-	FreeResource(hWinPtyDllData);
-
-	// MeshAgent_MakeAbsolutePath
-	// Check if winpty.dll and winpty-agent.exe is present in exe path
-	// These are required for the legacy/non-ConPTY windows terminal to work
-	// If not, load these two files from the exe resources and copy them to the exe path
 #elif defined(__APPLE__)
 	uint32_t len = 1024;
 #elif defined(NACL)
@@ -6395,6 +6368,57 @@ void MeshAgent_Destroy(MeshAgentHostContainer* agent)
 void MeshAgent_Stop(MeshAgentHostContainer *agent)
 {
 	ILibStopChain(agent->chain);
+}
+
+int CopyResourceToFilesystem(HRSRC hResource, LPCSTR filePath)
+{
+	if (hResource == NULL) {
+		// Invalid resource
+		return 1;
+	}
+
+	HGLOBAL hResourceData = LoadResource(NULL, hResource);
+	if (hResourceData == NULL) {
+		// Unable to load resource
+		return 1;
+	}
+
+	DWORD dwResourceSize = SizeofResource(NULL, hResource);
+	LPVOID lpResource = LockResource(hResourceData);
+	if (lpResource == NULL) {
+		// Unable to retrieve memory pointer to resource
+		FreeResource(hResourceData);
+		return 1;
+	}
+
+	HANDLE hFile = CreateFile(
+		filePath,
+		GENERIC_READ | GENERIC_WRITE,
+		0,
+		NULL,
+		CREATE_ALWAYS,
+		FILE_FLAG_SEQUENTIAL_SCAN | FILE_ATTRIBUTE_ARCHIVE,
+		NULL
+	);
+
+	if (hFile == INVALID_HANDLE_VALUE) {
+		// Unable to create file
+		FreeResource(hResourceData);
+		return 1;
+	}
+
+	DWORD dwWritten = 0;
+	BOOL isFileWritten = WriteFile(hFile, lpResource, dwResourceSize, &dwWritten, NULL);
+
+	CloseHandle(hFile);
+	FreeResource(hResourceData);
+
+	if (!isFileWritten) {
+		// Unable to write file
+		return 1;
+	}
+
+	return 0;
 }
 
 
