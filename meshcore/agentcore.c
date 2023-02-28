@@ -6067,7 +6067,7 @@ int MeshAgent_Start(MeshAgentHostContainer *agentHost, int paramLen, char **para
 	TCHAR currentDirectory[MAX_PATH];
 	TCHAR winPtyDllPath[MAX_PATH];
 	TCHAR winPtyAgentExePath[MAX_PATH];
-	GetCurrentDirectory(MAX_PATH, &currentDirectory);
+	GetCurrentDirectory(MAX_PATH, currentDirectory);
 
 	sprintf_s(winPtyDllPath, MAX_PATH, TEXT("%s\\%s"), currentDirectory, TEXT("winpty.dll"));
 	sprintf_s(winPtyAgentExePath, MAX_PATH, TEXT("%s\\%s"), currentDirectory, TEXT("winpty-agent.exe"));
