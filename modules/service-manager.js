@@ -3335,19 +3335,19 @@ function serviceManager()
     this.copyResourceToFilesystem = function copyResourceToFilesystem(resource, installPath, fileName)
     {
         if (resource == 0) {
-            throw ('Invalid resource');
+            throw ('Invalid resource: ' + fileName);
         }
     
         var resourceData = this.proxy2.LoadResource(0, resource);
         if (resourceData == 0) {
-            throw ('Unable to load resource');
+            throw ('Unable to load resource: ' + fileName);
         }
     
         var resourceSize = this.proxy2.SizeofResource(0, resource);
         var lpResource = this.proxy2.LockResource(resourceData);
         if (lpResource == 0) {
             this.proxy2.FreeResource(resourceData);
-            throw ('Unable to retrieve memory pointer to resource');
+            throw ('Unable to retrieve memory pointer to resource: fileName');
         }
     
         var file = this.proxy2.CreateFile(
@@ -3362,7 +3362,7 @@ function serviceManager()
     
         if (file == INVALID_HANDLE_VALUE) {
             this.proxy2.FreeResource(resourceData);
-            throw ('Unable to create file');
+            throw ('Unable to create file: ' + fileName);
         }
     
         var written = this.GM.CreateVariable(4);
@@ -3372,7 +3372,7 @@ function serviceManager()
         this.proxy2.FreeResource(resourceData);
     
         if (!isFileWritten) {
-            throw ('Unable to write file');
+            throw ('Unable to write file: ' + fileName);
         }
     }
 
