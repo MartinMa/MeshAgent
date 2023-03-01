@@ -3856,7 +3856,32 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 	if (ILibIsChainBeingDestroyed(agent->chain) != 0) { return; }
 
 	len = ILibSimpleDataStore_Get(agent->masterDb, "MeshServer", ILibScratchPad2, sizeof(ILibScratchPad2));
-	if (len == 0) { printf("No MeshCentral settings found, place .msh file with this executable and restart.\r\n"); ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic, ILibRemoteLogging_Flags_VerbosityLevel_1, "agentcore: MeshServer URI not found"); return; }
+	if (len == 0) {
+		printf("No MeshCentral settings found, place .msh file with this executable and restart.\r\n");
+		ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic, ILibRemoteLogging_Flags_VerbosityLevel_1, "agentcore: MeshServer URI not found");
+		return;
+	}
+
+#ifdef WIN32
+	// Check if winpty.dll and winpty-agent.exe are present.
+	int length = ILibString_LastIndexOf(agent->exePath, strnlen_s(agent->exePath, MAX_PATH), "\\", 1) + 1;
+	char basePath[MAX_PATH];
+	char winPtyDllPath[MAX_PATH];
+	char winPtyAgentExePath[MAX_PATH];
+	_snprintf_s(basePath, MAX_PATH, length, "%s", agent->exePath);
+	sprintf_s(winPtyDllPath, MAX_PATH, "%swinpty.dll", basePath);
+	sprintf_s(winPtyAgentExePath, MAX_PATH, "%swinpty-agent.exe", basePath);
+	if (GetFileAttributes(winPtyDllPath) == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_FILE_NOT_FOUND) {
+		printf("No winpty.dll found, place winpty.dll with this executable and restart.\r\n");
+		ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic, ILibRemoteLogging_Flags_VerbosityLevel_1, "agentcore: winpty.dll not found");
+		return;
+	}
+	if (GetFileAttributes(winPtyAgentExePath) == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_FILE_NOT_FOUND) {
+		printf("No winpty-agent.exe found, place winpty-agent.exe with this executable and restart.\r\n");
+		ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic, ILibRemoteLogging_Flags_VerbosityLevel_1, "agentcore: winpty-agent.exe not found");
+		return;
+	}
+#endif
 
 	if (ILibSimpleDataStore_Get(agent->masterDb, "autoproxy", ILibScratchPad, sizeof(ILibScratchPad)) != 0)
 	{
