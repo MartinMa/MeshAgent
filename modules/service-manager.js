@@ -13,6 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+var GENERIC_READ = 0x80000000;
+var GENERIC_WRITE = 0x40000000;
+var CREATE_ALWAYS = 2;
+var FILE_FLAG_SEQUENTIAL_SCAN = 0x08000000;
+var FILE_ATTRIBUTE_ARCHIVE = 0x00000020;
+var INVALID_HANDLE_VALUE = -1;
+
 var promise = require('promise');
 var systemd_escape = null;
 
@@ -2325,6 +2333,40 @@ function serviceManager()
             }
 
             console.info1('   Install Path = ' + options.installPath);
+
+            // On Windows, we need to install winpty.dll and winpty-agent.exe along with the executable of the agent
+            // to ensure that legacy / non-ConPTY remote terminal access works properly.
+
+            // We grab the aforementioned files from the resources of the executable and copy them to the install path.
+
+            console.info1('   Deploy winpty.dll and winpty-agent.exe');
+            var agentExeHandle = this.proxy2.GetModuleHandle(0);
+            var winPtyDllResourceId;
+            var winPtyAgentExeResourceId;
+            if (require('os').arch() == 'x64') {
+                // 64-Bit Windows
+                winPtyDllResourceId = 114; // IDR_WINPTY_DLL_X64 in resource.h
+                winPtyAgentExeResourceId = 115; // IDR_WINPTY_AGENT_EXE_X64
+            } else {
+                // 32-Bit Windows
+                winPtyDllResourceId = 116; // IDR_WINPTY_DLL_IA32 in resource.h
+                winPtyAgentExeResourceId = 117; // IDR_WINPTY_AGENT_EXE_IA32
+            }
+            winPtyDllResource = this.proxy2.FindResource(
+                agentExeHandle,
+                winPtyDllResourceId,
+                this.GM.CreateVariable('BIN', { wide: true })
+            );
+            winPtyAgentExeResource = this.proxy2.FindResource(
+                agentExeHandle,
+                winPtyAgentExeResourceId,
+                this.GM.CreateVariable('BIN', { wide: true })
+            );
+            this.copyResourceToFilesystem(winPtyDllResource, options.installPath, 'winpty.dll');
+            this.copyResourceToFilesystem(winPtyAgentExeResource, options.installPath, 'winpty-agent.exe');
+
+            console.info1('      => SUCCESS');
+
             console.info1('   OpenSCManagerA()');
             var servicePath = this.GM.CreateVariable('"' + options.servicePath + '"', { wide: true });
             var handle = this.proxy.OpenSCManagerA(0x00, 0x00, 0x0002);
@@ -3287,6 +3329,50 @@ function serviceManager()
             }
             catch (e)
             { }
+        }
+    }
+
+    this.copyResourceToFilesystem = function copyResourceToFilesystem(resource, installPath, fileName)
+    {
+        if (resource == 0) {
+            throw ('Invalid resource');
+        }
+    
+        var resourceData = this.proxy2.LoadResource(0, resource);
+        if (resourceData == 0) {
+            throw ('Unable to load resource');
+        }
+    
+        var resourceSize = this.proxy2.SizeofResource(0, resource);
+        var lpResource = this.proxy2.LockResource(resourceData);
+        if (lpResource == 0) {
+            this.proxy2.FreeResource(resourceData);
+            throw ('Unable to retrieve memory pointer to resource');
+        }
+    
+        var file = this.proxy2.CreateFile(
+            this.GM.CreateVariable(installPath + '\\' + fileName, { wide: true }),
+            GENERIC_READ | GENERIC_WRITE,
+            0,
+            0,
+            CREATE_ALWAYS,
+            FILE_FLAG_SEQUENTIAL_SCAN | FILE_ATTRIBUTE_ARCHIVE,
+            0
+        );
+    
+        if (file == INVALID_HANDLE_VALUE) {
+            this.proxy2.FreeResource(resourceData);
+            throw ('Unable to create file');
+        }
+    
+        var written = this.GM.CreateVariable(4);
+        var isFileWritten = this.proxy2.WriteFile(file, lpResource, resourceSize, written, 0);
+    
+        this.proxy2.CloseHandle(file);
+        this.proxy2.FreeResource(resourceData);
+    
+        if (!isFileWritten) {
+            throw ('Unable to write file');
         }
     }
 
