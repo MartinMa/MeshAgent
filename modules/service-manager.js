@@ -645,6 +645,15 @@ function serviceManager()
         this.proxy.CreateMethod('FreeSid');
 
         this.proxy2 = this.GM.CreateNativeProxy('Kernel32.dll');
+        this.proxy2.CreateMethod('GetModuleHandleW');
+        this.proxy2.CreateMethod('FindResourceW');
+        this.proxy2.CreateMethod('LoadResource');
+        this.proxy2.CreateMethod('SizeofResource');
+        this.proxy2.CreateMethod('LockResource');
+        this.proxy2.CreateMethod('FreeResource');
+        this.proxy2.CreateMethod('CreateFileW');
+        this.proxy2.CreateMethod('WriteFile');
+        this.proxy2.CreateMethod('CloseHandle');
         this.proxy2.CreateMethod('GetLastError');
 
         this.isAdmin = function isAdmin() {
@@ -2340,7 +2349,7 @@ function serviceManager()
             // We grab the aforementioned files from the resources of the executable and copy them to the install path.
 
             console.info1('   Deploy winpty.dll and winpty-agent.exe');
-            var agentExeHandle = this.proxy2.GetModuleHandle(0);
+            var agentExeHandle = this.proxy2.GetModuleHandleW(0);
             var winPtyDllResourceId;
             var winPtyAgentExeResourceId;
             if (require('os').arch() == 'x64') {
@@ -2352,12 +2361,12 @@ function serviceManager()
                 winPtyDllResourceId = 116; // IDR_WINPTY_DLL_IA32 in resource.h
                 winPtyAgentExeResourceId = 117; // IDR_WINPTY_AGENT_EXE_IA32
             }
-            winPtyDllResource = this.proxy2.FindResource(
+            winPtyDllResource = this.proxy2.FindResourceW(
                 agentExeHandle,
                 winPtyDllResourceId,
                 this.GM.CreateVariable('BIN', { wide: true })
             );
-            winPtyAgentExeResource = this.proxy2.FindResource(
+            winPtyAgentExeResource = this.proxy2.FindResourceW(
                 agentExeHandle,
                 winPtyAgentExeResourceId,
                 this.GM.CreateVariable('BIN', { wide: true })
@@ -3054,6 +3063,17 @@ function serviceManager()
                     var child = require('child_process').execFile(process.env['windir'] + '\\system32\\cmd.exe', ['/C CHOICE /C Y /N /D Y /T 10 & del "' + servicePath + '"'], { type: 4 });
                 }
             }
+            try
+            {
+                // Remove winpty.dll and winpty-agent.exe
+                var fs = require('fs');
+                fs.unlinkSync(service.appWorkingDirectory() + '\\winpty.dll');
+                fs.unlinkSync(service.appWorkingDirectory() + '\\winpty-agent.exe');
+            }
+            catch (e)
+            {
+                console.info1('Error deleting winpty.dll and winpty-agent.exe');
+            }
             if (this.proxy.DeleteService(service._service) == 0)
             {
                 throw ('Uninstall Service for: ' + name + ', failed with error: ' + this.proxy2.GetLastError());
@@ -3347,10 +3367,10 @@ function serviceManager()
         var lpResource = this.proxy2.LockResource(resourceData);
         if (lpResource == 0) {
             this.proxy2.FreeResource(resourceData);
-            throw ('Unable to retrieve memory pointer to resource: fileName');
+            throw ('Unable to retrieve memory pointer to resource: ' + fileName);
         }
     
-        var file = this.proxy2.CreateFile(
+        var file = this.proxy2.CreateFileW(
             this.GM.CreateVariable(installPath + '\\' + fileName, { wide: true }),
             GENERIC_READ | GENERIC_WRITE,
             0,
