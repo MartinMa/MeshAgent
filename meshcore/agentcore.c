@@ -3863,7 +3863,7 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 	}
 
 #ifdef WIN32
-	// Check if winpty.dll and winpty-agent.exe are present.
+	// Check if winpty.dll and winpty-agent.exe are present and try to deploy them if not.
 	int length = ILibString_LastIndexOf(agent->exePath, strnlen_s(agent->exePath, MAX_PATH), "\\", 1) + 1;
 	char basePath[MAX_PATH];
 	char winPtyDllPath[MAX_PATH];
@@ -3871,15 +3871,12 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 	_snprintf_s(basePath, MAX_PATH, length, "%s", agent->exePath);
 	sprintf_s(winPtyDllPath, MAX_PATH, "%swinpty.dll", basePath);
 	sprintf_s(winPtyAgentExePath, MAX_PATH, "%swinpty-agent.exe", basePath);
-	if (GetFileAttributes(winPtyDllPath) == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_FILE_NOT_FOUND) {
-		printf("No winpty.dll found, place winpty.dll with this executable and restart.\r\n");
-		ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic, ILibRemoteLogging_Flags_VerbosityLevel_1, "agentcore: winpty.dll not found");
-		return;
-	}
-	if (GetFileAttributes(winPtyAgentExePath) == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_FILE_NOT_FOUND) {
-		printf("No winpty-agent.exe found, place winpty-agent.exe with this executable and restart.\r\n");
-		ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic, ILibRemoteLogging_Flags_VerbosityLevel_1, "agentcore: winpty-agent.exe not found");
-		return;
+	if (GetFileAttributes(winPtyDllPath) == INVALID_FILE_ATTRIBUTES ||
+		GetFileAttributes(winPtyAgentExePath) == INVALID_FILE_ATTRIBUTES &&
+		GetLastError() == ERROR_FILE_NOT_FOUND)
+	{
+		printf("Either winpty.dll or winpty-agent.exe is missing. Trying to deploy missing dependencies.\r\n");
+		duk_push_sprintf(agent->meshCoreCtx, "require('service-manager').manager.deployWinPtyDependencies('%s')", basePath);
 	}
 #endif
 
