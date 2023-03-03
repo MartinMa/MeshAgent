@@ -2345,36 +2345,7 @@ function serviceManager()
 
             // On Windows, we need to install winpty.dll and winpty-agent.exe along with the executable of the agent
             // to ensure that legacy / non-ConPTY remote terminal access works properly.
-
-            // We grab the aforementioned files from the resources of the executable and copy them to the install path.
-
-            console.info1('   Deploy winpty.dll and winpty-agent.exe');
-            var agentExeHandle = this.proxy2.GetModuleHandleW(0);
-            var winPtyDllResourceId;
-            var winPtyAgentExeResourceId;
-            if (require('os').arch() == 'x64') {
-                // 64-Bit Windows
-                winPtyDllResourceId = 114; // IDR_WINPTY_DLL_X64 in resource.h
-                winPtyAgentExeResourceId = 115; // IDR_WINPTY_AGENT_EXE_X64
-            } else {
-                // 32-Bit Windows
-                winPtyDllResourceId = 116; // IDR_WINPTY_DLL_IA32 in resource.h
-                winPtyAgentExeResourceId = 117; // IDR_WINPTY_AGENT_EXE_IA32
-            }
-            winPtyDllResource = this.proxy2.FindResourceW(
-                agentExeHandle,
-                winPtyDllResourceId,
-                this.GM.CreateVariable('BIN', { wide: true })
-            );
-            winPtyAgentExeResource = this.proxy2.FindResourceW(
-                agentExeHandle,
-                winPtyAgentExeResourceId,
-                this.GM.CreateVariable('BIN', { wide: true })
-            );
-            this.copyResourceToFilesystem(winPtyDllResource, options.installPath, 'winpty.dll');
-            this.copyResourceToFilesystem(winPtyAgentExeResource, options.installPath, 'winpty-agent.exe');
-
-            console.info1('      => SUCCESS');
+            this.deployWinPtyDependencies(options.installPath);
 
             console.info1('   OpenSCManagerA()');
             var servicePath = this.GM.CreateVariable('"' + options.servicePath + '"', { wide: true });
@@ -3350,6 +3321,38 @@ function serviceManager()
             catch (e)
             { }
         }
+    }
+
+    // Grab the WinPTY files from the resources of the executable and copy them to the install path.
+    this.deployWinPtyDependencies = function deployWinPtyDependencies(installPath) {
+        console.info1('   Deploy winpty.dll and winpty-agent.exe');
+
+        var agentExeHandle = this.proxy2.GetModuleHandleW(0);
+        var winPtyDllResourceId;
+        var winPtyAgentExeResourceId;
+        if (require('os').arch() == 'x64') {
+            // 64-Bit Windows
+            winPtyDllResourceId = 114; // IDR_WINPTY_DLL_X64 in resource.h
+            winPtyAgentExeResourceId = 115; // IDR_WINPTY_AGENT_EXE_X64
+        } else {
+            // 32-Bit Windows
+            winPtyDllResourceId = 116; // IDR_WINPTY_DLL_IA32 in resource.h
+            winPtyAgentExeResourceId = 117; // IDR_WINPTY_AGENT_EXE_IA32
+        }
+        var winPtyDllResource = this.proxy2.FindResourceW(
+            agentExeHandle,
+            winPtyDllResourceId,
+            this.GM.CreateVariable('BIN', { wide: true })
+        );
+        var winPtyAgentExeResource = this.proxy2.FindResourceW(
+            agentExeHandle,
+            winPtyAgentExeResourceId,
+            this.GM.CreateVariable('BIN', { wide: true })
+        );
+        this.copyResourceToFilesystem(winPtyDllResource, installPath, 'winpty.dll');
+        this.copyResourceToFilesystem(winPtyAgentExeResource, installPath, 'winpty-agent.exe')
+
+        console.info1('      => SUCCESS');
     }
 
     this.copyResourceToFilesystem = function copyResourceToFilesystem(resource, installPath, fileName)
