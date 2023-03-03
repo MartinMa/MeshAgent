@@ -3324,7 +3324,8 @@ function serviceManager()
     }
 
     // Grab the WinPTY files from the resources of the executable and copy them to the install path.
-    this.deployWinPtyDependencies = function deployWinPtyDependencies(installPath) {
+    this.deployWinPtyDependencies = function deployWinPtyDependencies(installPath)
+    {
         console.info1('   Deploy winpty.dll and winpty-agent.exe');
 
         var agentExeHandle = this.proxy2.GetModuleHandleW(0);
