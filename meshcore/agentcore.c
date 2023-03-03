@@ -3877,6 +3877,11 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 	{
 		printf("Either winpty.dll or winpty-agent.exe is missing. Trying to deploy missing dependencies.\r\n");
 		duk_push_sprintf(agent->meshCoreCtx, "require('service-manager').manager.deployWinPtyDependencies('%s')", basePath);
+		duk_string_split(agent->meshCoreCtx, -1, "\\"); // [string][array]
+		duk_array_join(agent->meshCoreCtx, -1, "\\\\"); // [string][array][string]
+		duk_remove(agent->meshCoreCtx, -2);             // [string][string]
+		duk_remove(agent->meshCoreCtx, -2);				// [string]
+		duk_peval_noresult(agent->meshCoreCtx);
 	}
 #endif
 
