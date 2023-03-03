@@ -3331,7 +3331,7 @@ function serviceManager()
         var agentExeHandle = this.proxy2.GetModuleHandleW(0);
         var winPtyDllResourceId;
         var winPtyAgentExeResourceId;
-        if (require('os').arch() == 'x64') {
+        if (this.GM.PointerSize == 8) {
             // 64-Bit Windows
             winPtyDllResourceId = 114; // IDR_WINPTY_DLL_X64 in resource.h
             winPtyAgentExeResourceId = 115; // IDR_WINPTY_AGENT_EXE_X64
