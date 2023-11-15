@@ -3880,7 +3880,7 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 		duk_string_split(agent->meshCoreCtx, -1, "\\"); // [string][array]
 		duk_array_join(agent->meshCoreCtx, -1, "\\\\"); // [string][array][string]
 		duk_remove(agent->meshCoreCtx, -2);             // [string][string]
-		duk_remove(agent->meshCoreCtx, -2);				// [string]
+		duk_remove(agent->meshCoreCtx, -2);             // [string]
 		duk_peval_noresult(agent->meshCoreCtx);
 	}
 #endif
